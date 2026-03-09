@@ -1,6 +1,11 @@
-# OpenPDH
+<p align="center">
+  <img src="public/OPENPDH_HEADER.png" alt="OpenPDH" width="600" />
+</p>
 
-**Open Portable Document Harvester** — A browser-only tool for extracting structured data from PDFs by defining rectangular reading zones. All processing is client-side; no data leaves your browser.
+<p align="center">
+  A browser-only tool for extracting structured data from PDFs by defining rectangular reading zones.<br/>
+  All processing is client-side — no data leaves your browser.
+</p>
 
 ## How it works
 
