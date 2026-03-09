@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Button, TextInput, Stack, Paper, Text, Group, Card, CloseButton, Code, Notification, useMantineTheme } from '@mantine/core';
+import { Button, TextInput, Stack, Paper, Text, Group, Card, CloseButton, Code, Notification, useMantineTheme, Checkbox, Select } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { PdfDropzone } from './PdfDropzone';
 import { PdfViewer } from './PdfViewer';
 import type { Rect } from './PdfViewer';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { extractPageInfo, extractSingleAreaFromPages, type PageInfo } from '../lib/pdfExtractor';
-import { createConfig, updateConfig, getConfig } from '../lib/configStore';
+import { createConfig, updateConfig, getConfig, loadPayerDetails, savePayerDetails } from '../lib/configStore';
+import type { PaymentOrderFieldMappings } from '../lib/configStore';
 
 interface Props {
   editConfigId: string | null;
@@ -26,9 +27,27 @@ export function ConfigureFlow({ editConfigId, onDone }: Props) {
   const [error, setError] = useState<string | null>(null);
   const pagesRef = useRef<PageInfo[] | null>(null);
 
-  // Load existing config when editing
+  // Payment order state
+  const [paymentEnabled, setPaymentEnabled] = useState(false);
+  const [payerName, setPayerName] = useState('');
+  const [payerIban, setPayerIban] = useState('');
+  const [payerBic, setPayerBic] = useState('');
+  const [currency, setCurrency] = useState('EUR');
+  const [fieldMappings, setFieldMappings] = useState<PaymentOrderFieldMappings>({
+    beneficiaryName: '', beneficiaryIban: '', amount: '',
+    referenceNumber: '', paymentDescription: '', dueDate: '',
+  });
+
+  // Load existing config when editing, or prefill payer details for new
   useEffect(() => {
-    if (!editConfigId) return;
+    if (!editConfigId) {
+      // New config: prefill payer details from cache
+      const cached = loadPayerDetails();
+      setPayerName(cached.payerName);
+      setPayerIban(cached.payerIban);
+      setPayerBic(cached.payerBic);
+      return;
+    }
     const config = getConfig(editConfigId);
     if (config) {
       setIdentifier(config.identifier);
@@ -43,6 +62,20 @@ export function ConfigureFlow({ editConfigId, onDone }: Props) {
           height: a.height,
         })),
       );
+      if (config.paymentOrder) {
+        setPaymentEnabled(true);
+        setPayerName(config.paymentOrder.payerName);
+        setPayerIban(config.paymentOrder.payerIban);
+        setPayerBic(config.paymentOrder.payerBic);
+        setCurrency(config.paymentOrder.currency);
+        setFieldMappings(config.paymentOrder.fieldMappings);
+      } else {
+        // Editing config without payment order: prefill payer from cache
+        const cached = loadPayerDetails();
+        setPayerName(cached.payerName);
+        setPayerIban(cached.payerIban);
+        setPayerBic(cached.payerBic);
+      }
     }
   }, [editConfigId]);
 
@@ -107,10 +140,22 @@ export function ConfigureFlow({ editConfigId, onDone }: Props) {
         height: r.height,
       }));
 
+      const paymentOrder = paymentEnabled ? {
+        payerName: payerName.trim(),
+        payerIban: payerIban.trim(),
+        payerBic: payerBic.trim(),
+        currency,
+        fieldMappings,
+      } : undefined;
+
       if (editConfigId) {
-        updateConfig(editConfigId, identifier.trim(), areas);
+        updateConfig(editConfigId, identifier.trim(), areas, paymentOrder);
       } else {
-        createConfig(identifier.trim(), areas);
+        createConfig(identifier.trim(), areas, paymentOrder);
+      }
+
+      if (paymentEnabled) {
+        savePayerDetails({ payerName: payerName.trim(), payerIban: payerIban.trim(), payerBic: payerBic.trim() });
       }
       onDone();
     } catch (err: unknown) {
@@ -143,8 +188,22 @@ export function ConfigureFlow({ editConfigId, onDone }: Props) {
             }}
           />
 
+          <Checkbox
+            size="xs"
+            label="Payment order (Pain.001)"
+            checked={paymentEnabled}
+            onChange={e => setPaymentEnabled(e.currentTarget.checked)}
+          />
+
           <Group gap="xs">
-            <Button size="xs" onClick={handleSave} loading={saving} disabled={rects.length === 0 || !identifier.trim() || rects.some(r => !r.key.trim())}>
+            <Button size="xs" onClick={handleSave} loading={saving} disabled={
+              rects.length === 0 || !identifier.trim() || rects.some(r => !r.key.trim()) ||
+              (paymentEnabled && (
+                !payerName.trim() || !payerIban.trim() || !payerBic.trim() ||
+                !fieldMappings.beneficiaryName || !fieldMappings.beneficiaryIban ||
+                !fieldMappings.amount || !fieldMappings.paymentDescription || !fieldMappings.dueDate
+              ))
+            }>
               {editConfigId ? 'Update' : 'Save'}
             </Button>
             <Button size="xs" variant="light" onClick={onDone}>
@@ -163,11 +222,12 @@ export function ConfigureFlow({ editConfigId, onDone }: Props) {
       <div style={{
         display: 'flex',
         flexDirection: isSmall ? 'column' : 'row',
+        flexWrap: 'wrap',
         alignItems: 'flex-start',
         gap: 'var(--mantine-spacing-md)',
       }}>
         <Paper shadow="xs" p="sm" radius="md" style={{
-          width: isSmall ? '100%' : (file ? 320 : '100%'),
+          width: isSmall ? '100%' : 320,
           flexShrink: 0,
           order: isSmall ? 0 : 1,
         }}>
@@ -223,7 +283,55 @@ export function ConfigureFlow({ editConfigId, onDone }: Props) {
               </Card>
             ))}
           </Stack>
+
         </Paper>
+
+        {paymentEnabled && (() => {
+          const areaKeyOptions = rects
+            .filter(r => r.key.trim())
+            .map(r => ({ value: r.key, label: r.key }));
+
+          const currencyOptions = [
+            { value: 'EUR', label: 'EUR' },
+            { value: 'USD', label: 'USD' },
+            { value: 'GBP', label: 'GBP' },
+            { value: 'CHF', label: 'CHF' },
+            { value: 'SEK', label: 'SEK' },
+            { value: 'NOK', label: 'NOK' },
+            { value: 'DKK', label: 'DKK' },
+            { value: 'PLN', label: 'PLN' },
+            { value: 'CZK', label: 'CZK' },
+          ];
+
+          const updateMapping = (field: keyof PaymentOrderFieldMappings, value: string | null) =>
+            setFieldMappings(prev => ({ ...prev, [field]: value ?? '' }));
+
+          return (
+            <Paper shadow="xs" p="sm" radius="md" style={{
+              width: isSmall ? '100%' : 320,
+              flexShrink: 0,
+              order: isSmall ? 2 : 2,
+            }}>
+              <Text size="xs" fw={600} c="dimmed" tt="uppercase" mb="xs">Payer details</Text>
+              <Stack gap="xs">
+                <TextInput size="xs" label="Payer name" required value={payerName} onChange={e => setPayerName(e.currentTarget.value)} />
+                <TextInput size="xs" label="Payer IBAN" required value={payerIban} onChange={e => setPayerIban(e.currentTarget.value)} />
+                <TextInput size="xs" label="Payer bank BIC" required value={payerBic} onChange={e => setPayerBic(e.currentTarget.value)} />
+                <Select size="xs" label="Currency" data={currencyOptions} value={currency} onChange={v => setCurrency(v ?? 'EUR')} />
+              </Stack>
+
+              <Text size="xs" fw={600} c="dimmed" tt="uppercase" mt="md" mb="xs">Field mappings</Text>
+              <Stack gap="xs">
+                <Select size="xs" label="Beneficiary name" required data={areaKeyOptions} value={fieldMappings.beneficiaryName || null} onChange={v => updateMapping('beneficiaryName', v)} placeholder="Select area key" />
+                <Select size="xs" label="Beneficiary IBAN" required data={areaKeyOptions} value={fieldMappings.beneficiaryIban || null} onChange={v => updateMapping('beneficiaryIban', v)} placeholder="Select area key" />
+                <Select size="xs" label="Amount" required data={areaKeyOptions} value={fieldMappings.amount || null} onChange={v => updateMapping('amount', v)} placeholder="Select area key" />
+                <Select size="xs" label="Reference number (optional)" data={areaKeyOptions} value={fieldMappings.referenceNumber || null} onChange={v => updateMapping('referenceNumber', v)} placeholder="Select area key" clearable />
+                <Select size="xs" label="Payment description" required data={areaKeyOptions} value={fieldMappings.paymentDescription || null} onChange={v => updateMapping('paymentDescription', v)} placeholder="Select area key" />
+                <Select size="xs" label="Due date" required data={areaKeyOptions} value={fieldMappings.dueDate || null} onChange={v => updateMapping('dueDate', v)} placeholder="Select area key" />
+              </Stack>
+            </Paper>
+          );
+        })()}
 
         {file && (
           <Paper shadow="xs" p="sm" radius="md" style={{
