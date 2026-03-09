@@ -53,31 +53,41 @@ export function PdfViewer({
 
   // Load PDF document
   useEffect(() => {
+    let cancelled = false;
     const loadPdf = async () => {
       const arrayBuffer = await file.arrayBuffer();
       const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      setPdfDoc(doc);
+      if (cancelled) { doc.destroy(); return; }
+      setPdfDoc(prev => { prev?.destroy(); return doc; });
       setRotation(0);
       onTotalPages(doc.numPages);
       onDocLoaded?.(doc);
     };
     loadPdf();
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- only reload when file changes, callbacks are stable
   }, [file]);
 
   // Render current page
   useEffect(() => {
     if (!pdfDoc || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    let cancelled = false;
+    let renderTask: { cancel(): void } | null = null;
     const renderPage = async () => {
       const page = await pdfDoc.getPage(currentPage);
+      if (cancelled) return;
       const viewport = page.getViewport({ scale: 1.5, rotation });
-      const canvas = canvasRef.current!;
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      const ctx = canvas.getContext('2d')!;
-      await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const task = page.render({ canvasContext: ctx, viewport, canvas });
+      renderTask = task;
+      await task.promise;
     };
-    renderPage();
+    renderPage().catch(() => {});
+    return () => { cancelled = true; renderTask?.cancel(); };
   }, [pdfDoc, currentPage, rotation]);
 
   const getRelativePos = useCallback((e: React.MouseEvent) => {

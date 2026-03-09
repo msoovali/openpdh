@@ -31,7 +31,7 @@ export interface Config {
   paymentOrder?: PaymentOrderConfig;
 }
 
-const STORAGE_KEY = 'invoicereader-configs';
+const STORAGE_KEY = 'openpdh-configs';
 
 function loadAll(): Config[] {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -100,6 +100,17 @@ export interface ImportItem {
   paymentOrder?: PaymentOrderConfig;
 }
 
+function isValidArea(a: unknown): a is Area {
+  if (typeof a !== 'object' || a === null) return false;
+  const obj = a as Record<string, unknown>;
+  return typeof obj.key === 'string' &&
+    typeof obj.page === 'number' && Number.isInteger(obj.page) && obj.page >= 1 &&
+    typeof obj.x === 'number' && obj.x >= 0 && obj.x <= 100 &&
+    typeof obj.y === 'number' && obj.y >= 0 && obj.y <= 100 &&
+    typeof obj.width === 'number' && obj.width > 0 && obj.width <= 100 &&
+    typeof obj.height === 'number' && obj.height > 0 && obj.height <= 100;
+}
+
 export function parseImport(json: string): { items: ImportItem[]; conflicts: string[] } {
   const parsed = JSON.parse(json);
   const rawItems: Omit<Config, 'id'>[] = Array.isArray(parsed) ? parsed : [parsed];
@@ -109,7 +120,9 @@ export function parseImport(json: string): { items: ImportItem[]; conflicts: str
 
   for (const item of rawItems) {
     if (!item.identifier || !Array.isArray(item.areas)) continue;
-    items.push({ identifier: item.identifier, areas: item.areas, paymentOrder: item.paymentOrder });
+    const validAreas = item.areas.filter(isValidArea);
+    if (validAreas.length === 0) continue;
+    items.push({ identifier: item.identifier, areas: validAreas, paymentOrder: item.paymentOrder });
     if (configs.find(c => c.identifier === item.identifier)) {
       conflicts.push(item.identifier);
     }

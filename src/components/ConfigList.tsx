@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { Stack, Card, Group, Text, Button, CloseButton, Notification, Paper, Modal } from '@mantine/core';
 import { listConfigs, deleteConfig, exportConfig, exportAllConfigs, parseImport, importConfigs } from '../lib/configStore';
 import type { ImportItem } from '../lib/configStore';
-import { downloadJSON } from '../lib/download';
+import { downloadJSON, sanitizeFilename } from '../lib/download';
 
 interface Props {
   onEdit: (id: string) => void;
@@ -31,7 +31,7 @@ export function ConfigList({ onEdit, onNew }: Props) {
   };
 
   const handleExport = (id: string, identifier: string) => {
-    downloadJSON(exportConfig(id), `${identifier}.json`);
+    downloadJSON(exportConfig(id), `${sanitizeFilename(identifier)}.json`);
   };
 
   const handleExportAll = () => {

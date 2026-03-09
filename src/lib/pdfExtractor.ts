@@ -51,7 +51,38 @@ export async function extractPageInfo(doc: PDFDocumentProxy): Promise<PageInfo[]
   return pages;
 }
 
-function extractTextFromArea(pageInfo: PageInfo, area: { x: number; y: number; width: number; height: number }): string {
+export async function extractSinglePageInfo(doc: PDFDocumentProxy, pageNum: number): Promise<PageInfo> {
+  const page = await doc.getPage(pageNum);
+  const viewport = page.getViewport({ scale: 1.0 });
+  const textContent = await page.getTextContent();
+  const chars: CharInfo[] = [];
+
+  for (const item of textContent.items) {
+    if (!('str' in item)) continue;
+    const str = item.str;
+    if (!str) continue;
+
+    const itemX = item.transform[4];
+    const itemY = item.transform[5];
+    const fontSize = Math.abs(item.transform[3]) || Math.abs(item.transform[0]);
+    const itemWidth = item.width;
+
+    const charWidth = str.length > 0 ? itemWidth / str.length : 0;
+
+    for (let c = 0; c < str.length; c++) {
+      chars.push({
+        char: str[c],
+        x: itemX + c * charWidth,
+        y: itemY,
+        fontSize,
+      });
+    }
+  }
+
+  return { width: viewport.width, height: viewport.height, chars };
+}
+
+export function extractTextFromArea(pageInfo: PageInfo, area: { x: number; y: number; width: number; height: number }): string {
   const areaLeft = (area.x / 100) * pageInfo.width;
   const areaTop = (area.y / 100) * pageInfo.height;
   const areaRight = ((area.x + area.width) / 100) * pageInfo.width;
