@@ -14,17 +14,7 @@ interface Props {
   onDone: () => void;
 }
 
-const currencyOptions = [
-  { value: 'EUR', label: 'EUR' },
-  { value: 'USD', label: 'USD' },
-  { value: 'GBP', label: 'GBP' },
-  { value: 'CHF', label: 'CHF' },
-  { value: 'SEK', label: 'SEK' },
-  { value: 'NOK', label: 'NOK' },
-  { value: 'DKK', label: 'DKK' },
-  { value: 'PLN', label: 'PLN' },
-  { value: 'CZK', label: 'CZK' },
-];
+const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK'];
 
 export function ConfigureFlow({ editConfigId, onDone }: Props) {
   const theme = useMantineTheme();
@@ -55,41 +45,36 @@ export function ConfigureFlow({ editConfigId, onDone }: Props) {
 
   // Load existing config when editing, or prefill payer details for new
   useEffect(() => {
-    if (!editConfigId) {
-      const cached = loadPayerDetails();
-      setPayerName(cached.payerName);
-      setPayerIban(cached.payerIban);
-      setPayerBic(cached.payerBic);
-      return;
-    }
-    const config = getConfig(editConfigId);
-    if (config) {
-      setIdentifier(config.identifier);
-      setRects(
-        config.areas.map(a => ({
-          id: crypto.randomUUID(),
-          key: a.key,
-          page: a.page,
-          x: a.x,
-          y: a.y,
-          width: a.width,
-          height: a.height,
-        })),
-      );
-      if (config.paymentOrder) {
-        setPaymentEnabled(true);
-        setPayerName(config.paymentOrder.payerName);
-        setPayerIban(config.paymentOrder.payerIban);
-        setPayerBic(config.paymentOrder.payerBic);
-        setCurrency(config.paymentOrder.currency);
-        setFieldMappings(config.paymentOrder.fieldMappings);
-      } else {
-        const cached = loadPayerDetails();
-        setPayerName(cached.payerName);
-        setPayerIban(cached.payerIban);
-        setPayerBic(cached.payerBic);
+    if (editConfigId) {
+      const config = getConfig(editConfigId);
+      if (config) {
+        setIdentifier(config.identifier);
+        setRects(
+          config.areas.map(a => ({
+            id: crypto.randomUUID(),
+            key: a.key,
+            page: a.page,
+            x: a.x,
+            y: a.y,
+            width: a.width,
+            height: a.height,
+          })),
+        );
+        if (config.paymentOrder) {
+          setPaymentEnabled(true);
+          setPayerName(config.paymentOrder.payerName);
+          setPayerIban(config.paymentOrder.payerIban);
+          setPayerBic(config.paymentOrder.payerBic);
+          setCurrency(config.paymentOrder.currency);
+          setFieldMappings(config.paymentOrder.fieldMappings);
+          return;
+        }
       }
     }
+    const cached = loadPayerDetails();
+    setPayerName(cached.payerName);
+    setPayerIban(cached.payerIban);
+    setPayerBic(cached.payerBic);
   }, [editConfigId]);
 
   const handleDocLoaded = useCallback(async (doc: PDFDocumentProxy) => {
@@ -332,7 +317,7 @@ export function ConfigureFlow({ editConfigId, onDone }: Props) {
               <TextInput size="xs" label="Payer name" required value={payerName} onChange={e => setPayerName(e.currentTarget.value)} />
               <TextInput size="xs" label="Payer IBAN" required value={payerIban} onChange={e => setPayerIban(e.currentTarget.value)} />
               <TextInput size="xs" label="Payer bank BIC" required value={payerBic} onChange={e => setPayerBic(e.currentTarget.value)} />
-              <Select size="xs" label="Currency" data={currencyOptions} value={currency} onChange={v => setCurrency(v ?? 'EUR')} />
+              <Select size="xs" label="Currency" data={CURRENCIES} value={currency} onChange={v => setCurrency(v ?? 'EUR')} />
             </Stack>
 
             <Text size="xs" fw={600} c="dimmed" tt="uppercase" mt="md" mb="xs">Field mappings</Text>
