@@ -14,44 +14,46 @@ export interface PageInfo {
   chars: CharInfo[];
 }
 
-export async function extractPageInfo(doc: PDFDocumentProxy): Promise<PageInfo[]> {
-  const pages: PageInfo[] = [];
+export async function extractSinglePageInfo(doc: PDFDocumentProxy, pageNum: number): Promise<PageInfo> {
+  const page = await doc.getPage(pageNum);
+  const viewport = page.getViewport({ scale: 1.0 });
+  const textContent = await page.getTextContent();
+  const chars: CharInfo[] = [];
 
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const viewport = page.getViewport({ scale: 1.0 });
-    const textContent = await page.getTextContent();
-    const chars: CharInfo[] = [];
+  for (const item of textContent.items) {
+    if (!('str' in item)) continue;
+    const str = item.str;
+    if (!str) continue;
 
-    for (const item of textContent.items) {
-      if (!('str' in item)) continue;
-      const str = item.str;
-      if (!str) continue;
+    const itemX = item.transform[4];
+    const itemY = item.transform[5];
+    const fontSize = Math.abs(item.transform[3]) || Math.abs(item.transform[0]);
+    const itemWidth = item.width;
 
-      const itemX = item.transform[4];
-      const itemY = item.transform[5];
-      const fontSize = Math.abs(item.transform[3]) || Math.abs(item.transform[0]);
-      const itemWidth = item.width;
+    const charWidth = str.length > 0 ? itemWidth / str.length : 0;
 
-      const charWidth = str.length > 0 ? itemWidth / str.length : 0;
-
-      for (let c = 0; c < str.length; c++) {
-        chars.push({
-          char: str[c],
-          x: itemX + c * charWidth,
-          y: itemY,
-          fontSize,
-        });
-      }
+    for (let c = 0; c < str.length; c++) {
+      chars.push({
+        char: str[c],
+        x: itemX + c * charWidth,
+        y: itemY,
+        fontSize,
+      });
     }
-
-    pages.push({ width: viewport.width, height: viewport.height, chars });
   }
 
+  return { width: viewport.width, height: viewport.height, chars };
+}
+
+export async function extractPageInfo(doc: PDFDocumentProxy): Promise<PageInfo[]> {
+  const pages: PageInfo[] = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    pages.push(await extractSinglePageInfo(doc, i));
+  }
   return pages;
 }
 
-function extractTextFromArea(pageInfo: PageInfo, area: { x: number; y: number; width: number; height: number }): string {
+export function extractTextFromArea(pageInfo: PageInfo, area: { x: number; y: number; width: number; height: number }): string {
   const areaLeft = (area.x / 100) * pageInfo.width;
   const areaTop = (area.y / 100) * pageInfo.height;
   const areaRight = ((area.x + area.width) / 100) * pageInfo.width;
@@ -89,16 +91,22 @@ function extractTextFromArea(pageInfo: PageInfo, area: { x: number; y: number; w
 }
 
 export async function extractFromAreas(doc: PDFDocumentProxy, areas: Area[]): Promise<Record<string, string>> {
-  const pages = await extractPageInfo(doc);
-  const result: Record<string, string> = {};
+  const neededPages = [...new Set(areas.map(a => a.page))];
+  const pageMap = new Map<number, PageInfo>();
+  await Promise.all(neededPages.map(async p => {
+    if (p >= 1 && p <= doc.numPages) {
+      pageMap.set(p, await extractSinglePageInfo(doc, p));
+    }
+  }));
 
+  const result: Record<string, string> = {};
   for (const area of areas) {
-    const pageIndex = area.page - 1;
-    if (pageIndex < 0 || pageIndex >= pages.length) {
+    const pageInfo = pageMap.get(area.page);
+    if (!pageInfo) {
       result[area.key] = 'ERROR: could not parse (page not found)';
       continue;
     }
-    const text = extractTextFromArea(pages[pageIndex], area);
+    const text = extractTextFromArea(pageInfo, area);
     result[area.key] = text || 'ERROR: could not parse';
   }
 

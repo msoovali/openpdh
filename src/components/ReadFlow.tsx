@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Stack, Select, Button, Code, Group, Text, Notification, Paper, useMantineTheme } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { PdfDropzone } from './PdfDropzone';
 import * as pdfjsLib from 'pdfjs-dist';
 import { listConfigs, getConfig } from '../lib/configStore';
 import { extractFromAreas } from '../lib/pdfExtractor';
-import { downloadJSON } from '../lib/download';
+import { downloadJSON, downloadXML, sanitizeFilename } from '../lib/download';
+import { generatePain001, parseDateToYMD } from '../lib/painXmlGenerator';
 import { PdfViewer } from './PdfViewer';
 import type { Rect } from './PdfViewer';
 
@@ -21,13 +22,19 @@ export function ReadFlow() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [rects, setRects] = useState<Rect[]>([]);
+  const docRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null);
 
   useEffect(() => {
     setConfigs(listConfigs());
   }, []);
 
-  // Build rects from selected config areas
+  const handleDocLoaded = useCallback((doc: pdfjsLib.PDFDocumentProxy) => {
+    docRef.current = doc;
+  }, []);
+
+  // Build rects from selected config areas, clear previous result
   useEffect(() => {
+    setResult(null);
     if (!selectedConfigId) { setRects([]); return; }
     const config = getConfig(selectedConfigId);
     if (!config) { setRects([]); return; }
@@ -51,10 +58,15 @@ export function ReadFlow() {
       const config = getConfig(selectedConfigId);
       if (!config) throw new Error('Configuration not found');
 
-      const arrayBuffer = await file.arrayBuffer();
-      const doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let doc = docRef.current;
+      let ownDoc = false;
+      if (!doc) {
+        const arrayBuffer = await file.arrayBuffer();
+        doc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        ownDoc = true;
+      }
       const data = await extractFromAreas(doc, config.areas);
-      await doc.destroy();
+      if (ownDoc) await doc.destroy();
       setResult(data);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Extraction failed');
@@ -63,16 +75,44 @@ export function ReadFlow() {
     }
   };
 
+  const selectedConfig = useMemo(
+    () => selectedConfigId ? getConfig(selectedConfigId) : null,
+    [selectedConfigId],
+  );
+
   const handleDownload = () => {
     if (!result) return;
-    const config = selectedConfigId ? getConfig(selectedConfigId) : null;
-    downloadJSON(JSON.stringify(result, null, 2), `${config?.identifier ?? 'extracted-data'}.json`);
+    downloadJSON(JSON.stringify(result, null, 2), `${sanitizeFilename(selectedConfig?.identifier ?? 'extracted-data')}.json`);
+  };
+
+  const handleDownloadXml = () => {
+    if (!result || !selectedConfig?.paymentOrder) return;
+    const { fieldMappings, payerName, payerIban, payerBic, currency } = selectedConfig.paymentOrder;
+
+    const xml = generatePain001({
+      payerName,
+      payerIban,
+      payerBic,
+      currency,
+      beneficiaryName: result[fieldMappings.beneficiaryName] ?? '',
+      beneficiaryIban: result[fieldMappings.beneficiaryIban] ?? '',
+      amount: result[fieldMappings.amount] ?? '',
+      referenceNumber: fieldMappings.referenceNumber ? result[fieldMappings.referenceNumber] : undefined,
+      paymentDescription: result[fieldMappings.paymentDescription] ?? '',
+      dueDate: result[fieldMappings.dueDate] ?? '',
+      identifier: selectedConfig.identifier,
+    });
+
+    const dueDateRaw = result[fieldMappings.dueDate] ?? '';
+    const parsedDate = parseDateToYMD(dueDateRaw);
+    downloadXML(xml, `${sanitizeFilename(selectedConfig.identifier)}_${parsedDate}.xml`);
   };
 
   const handleFileSelect = (f: File | null) => {
     setFile(f);
     setResult(null);
     setCurrentPage(1);
+    docRef.current = null;
   };
 
   return (
@@ -118,6 +158,7 @@ export function ReadFlow() {
             <Text size="sm" c="dimmed">1. Select a configuration that matches your document layout</Text>
             <Text size="sm" c="dimmed">2. Select or drop a PDF file</Text>
             <Text size="sm" c="dimmed">3. Click "Extract data" to get structured JSON output</Text>
+            <Text size="sm" c="dimmed">4. Download as JSON or, if the configuration has a payment order enabled, as a Pain.001 XML payment order</Text>
             <Text size="xs" c="dimmed" fs="italic" mt="xs">
               Your documents never leave your browser — all processing happens locally on your device.
             </Text>
@@ -148,9 +189,17 @@ export function ReadFlow() {
                 <Text size="xs" fw={600} c="dimmed" tt="uppercase">
                   Extracted data
                 </Text>
-                <Button size="compact-xs" variant="light" onClick={handleDownload}>
-                  Download JSON
-                </Button>
+                <Group gap="xs" align="center">
+                  <Text size="xs" c="dimmed">Download as</Text>
+                  <Button size="compact-xs" variant="light" onClick={handleDownload}>
+                    JSON
+                  </Button>
+                  {selectedConfig?.paymentOrder && (
+                    <Button size="compact-xs" variant="light" color="teal" onClick={handleDownloadXml}>
+                      Payment order XML
+                    </Button>
+                  )}
+                </Group>
               </Group>
               <Code block style={{ maxHeight: 600, overflow: 'auto', fontSize: 12 }}>
                 {JSON.stringify(result, null, 2)}
@@ -176,6 +225,7 @@ export function ReadFlow() {
                 onPageChange={setCurrentPage}
                 onTotalPages={setTotalPages}
                 selectedRectId={null}
+                onDocLoaded={handleDocLoaded}
               />
             </Paper>
           )}

@@ -66,10 +66,7 @@ Area coordinates are stored as percentages (0–100) of page dimensions, making 
 - [x] Responsive layout (mobile/desktop)
 - [x] Docker deployment with nginx
 - [x] Fully client-side — no data leaves the browser
-
-## Current Roadmap
-
-- [ ] Export extracted data as XML payment order
+- [x] Export extracted data as XML payment order
 
 ## Future Roadmap
 
