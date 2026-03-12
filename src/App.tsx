@@ -96,7 +96,7 @@ export default function App() {
   return (
     <MantineProvider>
       <FileStoreContext value={fileStore}>
-        <Layout onNavigate={navigate} currentView={view}>
+        <Layout onNavigate={navigate}>
           {view === 'configure' && (
             <ConfigureFlow
               editConfigId={editConfigId}

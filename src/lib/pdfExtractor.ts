@@ -93,6 +93,10 @@ export function extractTextFromArea(pageInfo: PageInfo, area: { x: number; y: nu
   return lines.map(l => l.trim()).join('\n').trim();
 }
 
+export function hasExtractionError(data: Record<string, string>): boolean {
+  return Object.values(data).some(v => !v || v.startsWith('ERROR:'));
+}
+
 export async function extractFromAreas(doc: PDFDocumentProxy, areas: Area[]): Promise<Record<string, string>> {
   const neededPages = [...new Set(areas.map(a => a.page))];
   const pageMap = new Map<number, PageInfo>();

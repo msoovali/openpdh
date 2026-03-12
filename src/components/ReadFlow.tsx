@@ -5,11 +5,12 @@ import { useMediaQuery } from '@mantine/hooks';
 import { PdfDropzone } from './PdfDropzone';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { listConfigs, getConfig } from '../lib/configStore';
-import { loadPdfDocument, extractFromAreas } from '../lib/pdfExtractor';
+import { loadPdfDocument, extractFromAreas, hasExtractionError } from '../lib/pdfExtractor';
 import { downloadJSON, downloadXML, downloadCSV, buildCsv, sanitizeFilename } from '../lib/download';
 import { generatePain001, generatePain001Multi, parseDateToYMD } from '../lib/painXmlGenerator';
 import type { Pain001Transaction } from '../lib/painXmlGenerator';
-import { useFiles } from '../lib/fileStore';
+import { useFiles, fileKey } from '../lib/fileStore';
+import { colors, statusDotStyle, stickyColumnStyle } from '../lib/styles';
 import { PdfViewer } from './PdfViewer';
 import type { Rect } from './PdfViewer';
 
@@ -200,7 +201,7 @@ export function ReadFlow({ initialConfigId, onEditTemplate, onCloneEditTemplate 
     previewDocRef.current = null;
   };
 
-  const errorCount = results?.filter(r => r.error || Object.values(r.data).some(v => !v || v.startsWith('ERROR:'))).length ?? 0;
+  const errorCount = results?.filter(r => r.error || hasExtractionError(r.data)).length ?? 0;
 
   return (
     <Stack gap="md" style={{ maxWidth: 1200, marginInline: 'auto' }}>
@@ -395,24 +396,21 @@ export function ReadFlow({ initialConfigId, onEditTemplate, onCloneEditTemplate 
                     const isActive = i === activeFileIndex;
                     return (
                       <Card
-                        key={f.name + f.size + i}
+                        key={fileKey(f) + i}
                         withBorder
                         padding="xs"
                         radius="sm"
                         style={{
-                          borderColor: isActive ? '#228be6' : undefined,
+                          borderColor: isActive ? colors.selected : undefined,
                           cursor: files.length > 1 ? 'pointer' : undefined,
                         }}
                         onClick={() => selectFile(i)}
                       >
                         <Group justify="space-between" wrap="nowrap" gap={6}>
                           <Group gap={6} wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{
-                              width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                              backgroundColor: !fr ? '#adb5bd'
-                                : (fr.error || Object.values(fr.data).some(v => !v || v.startsWith('ERROR:'))) ? '#fa5252'
-                                : '#40c057',
-                            }} />
+                            <div style={statusDotStyle(
+                              !fr ? undefined : (fr.error || hasExtractionError(fr.data)) ? 'error' : 'ok'
+                            )} />
                             <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }}>{f.name}</Text>
                           </Group>
                           <CloseButton size="xs" onClick={(e) => { e.stopPropagation(); removeFile(i); }} />
@@ -450,7 +448,7 @@ export function ReadFlow({ initialConfigId, onEditTemplate, onCloneEditTemplate 
             <Table striped highlightOnHover withTableBorder withColumnBorders fz="xs">
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th style={{ position: 'sticky', left: 0, zIndex: 1, backgroundColor: 'var(--mantine-color-body)' }}>Field</Table.Th>
+                  <Table.Th style={stickyColumnStyle}>Field</Table.Th>
                   {results.map((r, i) => (
                     <Table.Th key={i}>
                       {results.length > 1 ? (
@@ -463,7 +461,7 @@ export function ReadFlow({ initialConfigId, onEditTemplate, onCloneEditTemplate 
               <Table.Tbody>
                 {Object.keys(results[0].data).map(key => (
                   <Table.Tr key={key}>
-                    <Table.Td fw={600} style={{ whiteSpace: 'nowrap', position: 'sticky', left: 0, zIndex: 1, backgroundColor: 'var(--mantine-color-body)' }}>{key}</Table.Td>
+                    <Table.Td fw={600} style={{ whiteSpace: 'nowrap', ...stickyColumnStyle }}>{key}</Table.Td>
                     {results.map((r, i) => (
                       <Table.Td key={i} style={{ whiteSpace: 'pre-line' }}>
                         {r.data[key] || <Text size="xs" c="dimmed" fs="italic">empty</Text>}

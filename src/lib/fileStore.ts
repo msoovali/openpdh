@@ -13,3 +13,7 @@ export const FileStoreContext = createContext<FileStore>({
 export function useFiles() {
   return useContext(FileStoreContext);
 }
+
+export function fileKey(f: File): string {
+  return f.name + f.size;
+}

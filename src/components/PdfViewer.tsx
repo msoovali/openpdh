@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { ActionIcon, Group, Text } from '@mantine/core';
 import * as pdfjsLib from 'pdfjs-dist';
 import '../lib/pdfExtractor'; // ensures worker is initialized
+import { colors } from '../lib/styles';
 
 export interface Rect {
   id: string;
@@ -186,7 +187,7 @@ export function PdfViewer({
                 top: `${r.y}%`,
                 width: `${r.width}%`,
                 height: `${r.height}%`,
-                border: `2px solid ${selectedRectId === r.id ? '#228be6' : '#40c057'}`,
+                border: `2px solid ${selectedRectId === r.id ? colors.selected : colors.ok}`,
                 backgroundColor: selectedRectId === r.id ? 'rgba(34,139,230,0.15)' : 'rgba(64,192,87,0.1)',
                 cursor: 'pointer',
                 boxSizing: 'border-box',
@@ -198,7 +199,7 @@ export function PdfViewer({
                   top: -18,
                   left: 0,
                   fontSize: 11,
-                  backgroundColor: selectedRectId === r.id ? '#228be6' : '#40c057',
+                  backgroundColor: selectedRectId === r.id ? colors.selected : colors.ok,
                   color: 'white',
                   padding: '1px 4px',
                   borderRadius: 2,
@@ -220,7 +221,7 @@ export function PdfViewer({
                 top: `${Math.min(drawStart.y, drawCurrent.y)}%`,
                 width: `${Math.abs(drawCurrent.x - drawStart.x)}%`,
                 height: `${Math.abs(drawCurrent.y - drawStart.y)}%`,
-                border: '2px dashed #228be6',
+                border: `2px dashed ${colors.selected}`,
                 backgroundColor: 'rgba(34,139,230,0.1)',
                 pointerEvents: 'none',
               }}

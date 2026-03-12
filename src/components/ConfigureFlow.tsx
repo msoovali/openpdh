@@ -6,10 +6,11 @@ import { PdfDropzone } from './PdfDropzone';
 import { PdfViewer } from './PdfViewer';
 import type { Rect } from './PdfViewer';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { extractSinglePageInfo, extractTextFromArea, extractFromAreas, loadPdfDocument, type PageInfo } from '../lib/pdfExtractor';
+import { extractSinglePageInfo, extractTextFromArea, extractFromAreas, loadPdfDocument, hasExtractionError, type PageInfo } from '../lib/pdfExtractor';
 import { createConfig, updateConfig, getConfig, deleteConfig, listConfigs, loadPayerDetails, savePayerDetails } from '../lib/configStore';
 import type { PaymentOrderFieldMappings } from '../lib/configStore';
-import { useFiles } from '../lib/fileStore';
+import { useFiles, fileKey } from '../lib/fileStore';
+import { colors, statusDotStyle } from '../lib/styles';
 
 interface Props {
   editConfigId: string | null;
@@ -148,17 +149,17 @@ export function ConfigureFlow({ editConfigId, cloneFromConfigId, returnToRead, o
     let cancelled = false;
     const run = async () => {
       const next = new Map<string, 'ok' | 'error' | 'pending'>();
-      files.forEach(f => next.set(f.name + f.size, 'pending'));
+      files.forEach(f => next.set(fileKey(f), 'pending'));
       if (!cancelled) setFileStatus(new Map(next));
 
       for (const f of files) {
         if (cancelled) return;
-        const key = f.name + f.size;
+        const key = fileKey(f);
         try {
           const doc = await loadPdfDocument(f);
           const data = await extractFromAreas(doc, areas);
           doc.destroy();
-          const hasError = Object.values(data).some(v => !v || v.startsWith('ERROR:'));
+          const hasError = hasExtractionError(data);
           next.set(key, hasError ? 'error' : 'ok');
         } catch {
           next.set(key, 'error');
@@ -429,7 +430,7 @@ export function ConfigureFlow({ editConfigId, cloneFromConfigId, returnToRead, o
                   padding="xs"
                   radius="sm"
                   style={{
-                    borderColor: selectedRectId === r.id ? '#228be6' : undefined,
+                    borderColor: selectedRectId === r.id ? colors.selected : undefined,
                     cursor: 'pointer',
                   }}
                   onClick={() => {
@@ -520,27 +521,19 @@ export function ConfigureFlow({ editConfigId, cloneFromConfigId, returnToRead, o
               <Stack gap="xs" mb="sm">
                 {files.map((f, i) => (
                   <Card
-                    key={f.name + f.size + i}
+                    key={fileKey(f) + i}
                     withBorder
                     padding="xs"
                     radius="sm"
                     style={{
-                      borderColor: i === activeFileIndex ? '#228be6' : undefined,
+                      borderColor: i === activeFileIndex ? colors.selected : undefined,
                       cursor: files.length > 1 ? 'pointer' : undefined,
                     }}
                     onClick={() => selectFile(i)}
                   >
                     <Group justify="space-between" wrap="nowrap" gap={6}>
                       <Group gap={6} wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
-                        {(() => {
-                          const status = fileStatus.get(f.name + f.size);
-                          return (
-                            <div style={{
-                              width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                              backgroundColor: status === 'ok' ? '#40c057' : status === 'error' ? '#fa5252' : '#adb5bd',
-                            }} />
-                          );
-                        })()}
+                        <div style={statusDotStyle(fileStatus.get(fileKey(f)))} />
                         <Text size="xs" truncate style={{ flex: 1, minWidth: 0 }}>{f.name}</Text>
                       </Group>
                       <CloseButton size="xs" onClick={(e) => {

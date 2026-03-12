@@ -5,7 +5,6 @@ import type { View } from '../App';
 
 interface Props {
   children: ReactNode;
-  currentView: View;
   onNavigate: (view: View) => void;
 }
 

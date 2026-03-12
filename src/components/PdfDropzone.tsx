@@ -2,6 +2,8 @@ import { useRef } from 'react';
 import { Group, Text, Button, CloseButton } from '@mantine/core';
 import { Dropzone, MIME_TYPES } from '@mantine/dropzone';
 import { IconFileUpload } from '@tabler/icons-react';
+import { fileKey } from '../lib/fileStore';
+import { fileInputWrapperStyle } from '../lib/styles';
 import '@mantine/dropzone/styles.css';
 
 interface SingleProps {
@@ -28,8 +30,8 @@ export function PdfDropzone(props: Props) {
     const { files, onFilesChange } = props;
 
     const addFiles = (newFiles: File[]) => {
-      const existing = new Set(files.map(f => f.name + f.size));
-      const unique = newFiles.filter(f => !existing.has(f.name + f.size));
+      const existing = new Set(files.map(fileKey));
+      const unique = newFiles.filter(f => !existing.has(fileKey(f)));
       if (unique.length > 0) onFilesChange([...files, ...unique]);
     };
 
@@ -50,12 +52,7 @@ export function PdfDropzone(props: Props) {
           <Group
             gap={6}
             align="center"
-            style={{
-              border: '1px solid var(--mantine-color-default-border)',
-              borderRadius: 'var(--mantine-radius-sm)',
-              padding: '4px 8px',
-              height: 30,
-            }}
+            style={fileInputWrapperStyle}
           >
             <Text size="xs" truncate style={{ maxWidth: 160 }}>
               {files.length} file{files.length !== 1 ? 's' : ''}
