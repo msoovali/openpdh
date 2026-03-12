@@ -1,10 +1,11 @@
 import { MantineProvider } from '@mantine/core';
 import '@mantine/core/styles.css';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Layout } from './components/Layout';
 import { ConfigureFlow } from './components/ConfigureFlow';
 import { ReadFlow } from './components/ReadFlow';
 import { ConfigList } from './components/ConfigList';
+import { FileStoreContext } from './lib/fileStore';
 
 export type View = 'configure' | 'read' | 'configs';
 
@@ -18,8 +19,13 @@ export default function App() {
   const [editConfigId, setEditConfigId] = useState<string | null>(null);
   const [cloneFromConfigId, setCloneFromConfigId] = useState<string | null>(null);
   const [readConfigId, setReadConfigId] = useState<string | null>(null);
-  const [sharedFile, setSharedFile] = useState<File | null>(null);
+  const [sharedFiles, setSharedFiles] = useState<File[]>([]);
   const [returnToRead, setReturnToRead] = useState(false);
+
+  const fileStore = useMemo(() => ({
+    files: sharedFiles,
+    setFiles: setSharedFiles,
+  }), [sharedFiles]);
 
   const navigate = useCallback((next: View) => {
     window.history.pushState({ view: next }, '');
@@ -27,7 +33,6 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Replace initial entry so back from first non-configs view lands on configs
     window.history.replaceState({ view }, '');
 
     const onPopState = (e: PopStateEvent) => {
@@ -42,22 +47,20 @@ export default function App() {
     setEditConfigId(id);
     setCloneFromConfigId(null);
     setReturnToRead(false);
-    setSharedFile(null);
+    setSharedFiles([]);
     navigate('configure');
   };
 
-  const handleEditFromRead = (id: string, file: File | null) => {
+  const handleEditFromRead = (id: string) => {
     setEditConfigId(id);
     setCloneFromConfigId(null);
-    setSharedFile(file);
     setReturnToRead(true);
     navigate('configure');
   };
 
-  const handleCloneEditFromRead = (id: string, file: File | null) => {
+  const handleCloneEditFromRead = (id: string) => {
     setEditConfigId(null);
     setCloneFromConfigId(id);
-    setSharedFile(file);
     setReturnToRead(true);
     navigate('configure');
   };
@@ -66,45 +69,46 @@ export default function App() {
     setEditConfigId(null);
     setCloneFromConfigId(null);
     setReturnToRead(false);
-    setSharedFile(null);
+    setSharedFiles([]);
     navigate('configure');
   };
 
   const handleRead = (id: string) => {
     setReadConfigId(id);
-    setSharedFile(null);
+    setSharedFiles([]);
     navigate('read');
   };
 
   const handleConfigDone = (savedConfigId?: string, backToRead?: boolean) => {
-    if (backToRead && savedConfigId) {
-      setReadConfigId(savedConfigId);
+    if (backToRead) {
+      if (savedConfigId) setReadConfigId(savedConfigId);
       setReturnToRead(false);
       navigate('read');
     } else {
       setEditConfigId(null);
       setCloneFromConfigId(null);
       setReturnToRead(false);
-      setSharedFile(null);
+      setSharedFiles([]);
       navigate('configs');
     }
   };
 
   return (
     <MantineProvider>
-      <Layout onNavigate={navigate} currentView={view}>
-        {view === 'configure' && (
-          <ConfigureFlow
-            editConfigId={editConfigId}
-            cloneFromConfigId={cloneFromConfigId}
-            initialFile={sharedFile}
-            returnToRead={returnToRead}
-            onDone={handleConfigDone}
-          />
-        )}
-        {view === 'read' && <ReadFlow initialConfigId={readConfigId} initialFile={sharedFile} onEditTemplate={handleEditFromRead} onCloneEditTemplate={handleCloneEditFromRead} />}
-        {view === 'configs' && <ConfigList onEdit={handleEdit} onNew={handleNewConfig} onRead={handleRead} />}
-      </Layout>
+      <FileStoreContext value={fileStore}>
+        <Layout onNavigate={navigate} currentView={view}>
+          {view === 'configure' && (
+            <ConfigureFlow
+              editConfigId={editConfigId}
+              cloneFromConfigId={cloneFromConfigId}
+              returnToRead={returnToRead}
+              onDone={handleConfigDone}
+            />
+          )}
+          {view === 'read' && <ReadFlow initialConfigId={readConfigId} onEditTemplate={handleEditFromRead} onCloneEditTemplate={handleCloneEditFromRead} />}
+          {view === 'configs' && <ConfigList onEdit={handleEdit} onNew={handleNewConfig} onRead={handleRead} />}
+        </Layout>
+      </FileStoreContext>
     </MantineProvider>
   );
 }

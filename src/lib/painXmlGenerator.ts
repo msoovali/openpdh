@@ -66,18 +66,30 @@ export function parseDateToYMD(raw: string): string {
   return trimmed;
 }
 
-export interface Pain001Params {
-  payerName: string;
-  payerIban: string;
-  payerBic: string;
-  currency: string;
+export interface Pain001Transaction {
   beneficiaryName: string;
   beneficiaryIban: string;
   amount: string;
   referenceNumber?: string;
   paymentDescription: string;
   dueDate: string;
+}
+
+export interface Pain001Params extends Pain001Transaction {
+  payerName: string;
+  payerIban: string;
+  payerBic: string;
+  currency: string;
   identifier: string;
+}
+
+export interface Pain001MultiParams {
+  payerName: string;
+  payerIban: string;
+  payerBic: string;
+  currency: string;
+  identifier: string;
+  transactions: Pain001Transaction[];
 }
 
 export function generatePain001(params: Pain001Params): string {
@@ -155,6 +167,106 @@ export function generatePain001(params: Pain001Params): string {
         </CdtrAcct>
 ${rmtInf}
       </CdtTrfTxInf>
+    </PmtInf>
+  </CstmrCdtTrfInitn>
+</Document>
+`;
+}
+
+function buildCdtTrfTxInf(tx: Pain001Transaction, index: number, ccy: string, now: Date): string {
+  const amount = normalizeAmount(tx.amount);
+  const endToEndId = tx.referenceNumber?.trim() || `E2E-${now.getTime()}-${index}`;
+
+  let rmtInf = `      <RmtInf>\n`;
+  rmtInf += `        <Ustrd>${escapeXml(tx.paymentDescription)}</Ustrd>\n`;
+  if (tx.referenceNumber?.trim()) {
+    rmtInf += `        <Strd>\n`;
+    rmtInf += `          <CdtrRefInf>\n`;
+    rmtInf += `            <Ref>${escapeXml(tx.referenceNumber.trim())}</Ref>\n`;
+    rmtInf += `          </CdtrRefInf>\n`;
+    rmtInf += `        </Strd>\n`;
+  }
+  rmtInf += `      </RmtInf>`;
+
+  return `      <CdtTrfTxInf>
+        <PmtId>
+          <EndToEndId>${escapeXml(endToEndId)}</EndToEndId>
+        </PmtId>
+        <Amt>
+          <InstdAmt Ccy="${escapeXml(ccy)}">${amount}</InstdAmt>
+        </Amt>
+        <CdtrAgt>
+          <FinInstnId/>
+        </CdtrAgt>
+        <Cdtr>
+          <Nm>${escapeXml(tx.beneficiaryName)}</Nm>
+        </Cdtr>
+        <CdtrAcct>
+          <Id>
+            <IBAN>${escapeXml(tx.beneficiaryIban)}</IBAN>
+          </Id>
+        </CdtrAcct>
+${rmtInf}
+      </CdtTrfTxInf>`;
+}
+
+export function generatePain001Multi(params: Pain001MultiParams): string {
+  const now = new Date();
+  const msgId = `${params.identifier}-${now.getTime()}`;
+  const pmtInfId = `PMT-${now.getTime()}`;
+  const creDtTm = now.toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const ccy = params.currency || 'EUR';
+  const nbOfTxs = params.transactions.length;
+
+  const amounts = params.transactions.map(tx => parseFloat(normalizeAmount(tx.amount)));
+  const ctrlSum = amounts.reduce((sum, a) => sum + a, 0).toFixed(2);
+
+  // Use earliest due date
+  const dates = params.transactions
+    .map(tx => parseDateToYMD(tx.dueDate))
+    .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d))
+    .sort();
+  const reqExctnDt = dates[0] ?? parseDateToYMD(params.transactions[0]?.dueDate ?? '');
+
+  const txBlocks = params.transactions
+    .map((tx, i) => buildCdtTrfTxInf(tx, i, ccy, now))
+    .join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.001.001.09"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <CstmrCdtTrfInitn>
+    <GrpHdr>
+      <MsgId>${escapeXml(msgId)}</MsgId>
+      <CreDtTm>${creDtTm}</CreDtTm>
+      <NbOfTxs>${nbOfTxs}</NbOfTxs>
+      <CtrlSum>${ctrlSum}</CtrlSum>
+      <InitgPty>
+        <Nm>${escapeXml(params.payerName)}</Nm>
+      </InitgPty>
+    </GrpHdr>
+    <PmtInf>
+      <PmtInfId>${escapeXml(pmtInfId)}</PmtInfId>
+      <PmtMtd>TRF</PmtMtd>
+      <NbOfTxs>${nbOfTxs}</NbOfTxs>
+      <CtrlSum>${ctrlSum}</CtrlSum>
+      <ReqdExctnDt>
+        <Dt>${reqExctnDt}</Dt>
+      </ReqdExctnDt>
+      <Dbtr>
+        <Nm>${escapeXml(params.payerName)}</Nm>
+      </Dbtr>
+      <DbtrAcct>
+        <Id>
+          <IBAN>${escapeXml(params.payerIban)}</IBAN>
+        </Id>
+      </DbtrAcct>
+      <DbtrAgt>
+        <FinInstnId>
+          <BICFI>${escapeXml(params.payerBic)}</BICFI>
+        </FinInstnId>
+      </DbtrAgt>
+${txBlocks}
     </PmtInf>
   </CstmrCdtTrfInitn>
 </Document>

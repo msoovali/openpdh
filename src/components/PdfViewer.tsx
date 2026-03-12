@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { ActionIcon, Group, Text } from '@mantine/core';
 import * as pdfjsLib from 'pdfjs-dist';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString();
+import '../lib/pdfExtractor'; // ensures worker is initialized
 
 export interface Rect {
   id: string;

@@ -1,5 +1,16 @@
+import * as pdfjsLib from 'pdfjs-dist';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { Area } from './configStore';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
+
+export async function loadPdfDocument(file: File): Promise<PDFDocumentProxy> {
+  const arrayBuffer = await file.arrayBuffer();
+  return pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+}
 
 interface CharInfo {
   char: string;
@@ -95,11 +106,11 @@ export async function extractFromAreas(doc: PDFDocumentProxy, areas: Area[]): Pr
   for (const area of areas) {
     const pageInfo = pageMap.get(area.page);
     if (!pageInfo) {
-      result[area.key] = 'ERROR: could not parse (page not found)';
+      result[area.key] = '';
       continue;
     }
     const text = extractTextFromArea(pageInfo, area);
-    result[area.key] = text || 'ERROR: could not parse';
+    result[area.key] = text;
   }
 
   return result;
