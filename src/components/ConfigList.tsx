@@ -3,7 +3,7 @@ import { Stack, Card, Group, Text, Button, ActionIcon, CloseButton, Notification
 import { listConfigs, deleteConfig, exportConfig, exportAllConfigs, parseImport, importConfigs } from '../lib/configStore';
 import type { ImportItem } from '../lib/configStore';
 import { downloadJSON, sanitizeFilename } from '../lib/download';
-import { IconPencil, IconDownload, IconUpload } from '@tabler/icons-react';
+import { IconPencil, IconDownload, IconUpload, IconChevronRight } from '@tabler/icons-react';
 
 interface Props {
   onEdit: (id: string) => void;
@@ -104,9 +104,12 @@ export function ConfigList({ onEdit, onNew, onRead }: Props) {
         )}
         <Stack gap="xs">
           {configs.map(c => (
-              <Card key={c.id} withBorder padding="xs" radius="sm" style={{ cursor: 'pointer' }} onClick={() => onRead(c.id)}>
+              <Card key={c.id} withBorder padding="xs" radius="sm" className="template-card" style={{ cursor: 'pointer', transition: 'background-color 150ms ease' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--mantine-color-blue-light)'} onMouseLeave={e => e.currentTarget.style.backgroundColor = ''} onClick={() => onRead(c.id)}>
                 <Group justify="space-between" wrap="nowrap">
-                  <Text size="sm" fw={500}>{c.identifier}</Text>
+                  <Group gap="xs" wrap="nowrap">
+                    <Text size="sm" fw={500}>{c.identifier}</Text>
+                    <IconChevronRight size={16} style={{ color: 'var(--mantine-color-blue-5)', flexShrink: 0 }} />
+                  </Group>
                   <Group gap={6}>
                     <ActionIcon variant="subtle" size="sm" onClick={(e) => { e.stopPropagation(); onEdit(c.id); }} title="Edit">
                       <IconPencil size={14} />
