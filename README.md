@@ -68,6 +68,7 @@ Area coordinates are stored as percentages (0–100) of page dimensions, making 
 - [x] Fully client-side — no data leaves the browser
 - [x] Export extracted data as XML payment order
 - [x] Process multiple PDFs at once
+- [x] PWA support (install as desktop app, work offline)
 
 ## Future Roadmap
 
@@ -90,7 +91,6 @@ Area coordinates are stored as percentages (0–100) of page dimensions, making 
 - [ ] Drag to move/resize existing rectangles
 
 ### Integration
-- [ ] PWA support (install as desktop app, work offline)
 - [ ] Browser extension (extract from PDFs opened in the browser)
 
 ### Data pipeline
