@@ -1,5 +1,16 @@
+import * as pdfjsLib from 'pdfjs-dist';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import type { Area } from './configStore';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString();
+
+export async function loadPdfDocument(file: File): Promise<PDFDocumentProxy> {
+  const arrayBuffer = await file.arrayBuffer();
+  return pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+}
 
 interface CharInfo {
   char: string;
@@ -45,14 +56,6 @@ export async function extractSinglePageInfo(doc: PDFDocumentProxy, pageNum: numb
   return { width: viewport.width, height: viewport.height, chars };
 }
 
-export async function extractPageInfo(doc: PDFDocumentProxy): Promise<PageInfo[]> {
-  const pages: PageInfo[] = [];
-  for (let i = 1; i <= doc.numPages; i++) {
-    pages.push(await extractSinglePageInfo(doc, i));
-  }
-  return pages;
-}
-
 export function extractTextFromArea(pageInfo: PageInfo, area: { x: number; y: number; width: number; height: number }): string {
   const areaLeft = (area.x / 100) * pageInfo.width;
   const areaTop = (area.y / 100) * pageInfo.height;
@@ -90,6 +93,10 @@ export function extractTextFromArea(pageInfo: PageInfo, area: { x: number; y: nu
   return lines.map(l => l.trim()).join('\n').trim();
 }
 
+export function hasExtractionError(data: Record<string, string>): boolean {
+  return Object.values(data).some(v => !v || v.startsWith('ERROR:'));
+}
+
 export async function extractFromAreas(doc: PDFDocumentProxy, areas: Area[]): Promise<Record<string, string>> {
   const neededPages = [...new Set(areas.map(a => a.page))];
   const pageMap = new Map<number, PageInfo>();
@@ -103,23 +110,12 @@ export async function extractFromAreas(doc: PDFDocumentProxy, areas: Area[]): Pr
   for (const area of areas) {
     const pageInfo = pageMap.get(area.page);
     if (!pageInfo) {
-      result[area.key] = 'ERROR: could not parse (page not found)';
+      result[area.key] = '';
       continue;
     }
     const text = extractTextFromArea(pageInfo, area);
-    result[area.key] = text || 'ERROR: could not parse';
+    result[area.key] = text;
   }
 
   return result;
-}
-
-export function extractSingleAreaFromPages(pages: PageInfo[], area: { page: number; x: number; y: number; width: number; height: number }): string {
-  const pageIndex = area.page - 1;
-
-  if (pageIndex < 0 || pageIndex >= pages.length) {
-    return 'ERROR: could not parse (page not found)';
-  }
-
-  const text = extractTextFromArea(pages[pageIndex], area);
-  return text || 'ERROR: could not parse';
 }

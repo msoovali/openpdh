@@ -1,15 +1,17 @@
 import { useState, useRef } from 'react';
-import { Stack, Card, Group, Text, Button, CloseButton, Notification, Paper, Modal } from '@mantine/core';
+import { Stack, Card, Group, Text, Button, ActionIcon, CloseButton, Notification, Paper, Modal } from '@mantine/core';
 import { listConfigs, deleteConfig, exportConfig, exportAllConfigs, parseImport, importConfigs } from '../lib/configStore';
 import type { ImportItem } from '../lib/configStore';
 import { downloadJSON, sanitizeFilename } from '../lib/download';
+import { IconPencil, IconDownload, IconUpload } from '@tabler/icons-react';
 
 interface Props {
   onEdit: (id: string) => void;
   onNew: () => void;
+  onRead: (id: string) => void;
 }
 
-export function ConfigList({ onEdit, onNew }: Props) {
+export function ConfigList({ onEdit, onNew, onRead }: Props) {
   const [configs, setConfigs] = useState(() => listConfigs());
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -25,7 +27,7 @@ export function ConfigList({ onEdit, onNew }: Props) {
       deleteConfig(deleteTarget.id);
       setConfigs(prev => prev.filter(c => c.id !== deleteTarget.id));
     } catch {
-      setError('Failed to delete configuration');
+      setError('Failed to delete template');
     }
     setDeleteTarget(null);
   };
@@ -45,12 +47,12 @@ export function ConfigList({ onEdit, onNew }: Props) {
       const text = await file.text();
       const result = parseImport(text);
       if (result.items.length === 0) {
-        setError('No valid configurations found in file');
+        setError('No valid templates found in file');
       } else if (result.conflicts.length > 0) {
         setImportData(result);
       } else {
         const count = importConfigs(result.items);
-        setSuccess(`Imported ${count} configuration${count !== 1 ? 's' : ''}`);
+        setSuccess(`Imported ${count} template${count !== 1 ? 's' : ''}`);
         load();
       }
     } catch {
@@ -62,29 +64,13 @@ export function ConfigList({ onEdit, onNew }: Props) {
   const confirmImport = () => {
     if (!importData) return;
     const count = importConfigs(importData.items);
-    setSuccess(`Imported ${count} configuration${count !== 1 ? 's' : ''}`);
+    setSuccess(`Imported ${count} template${count !== 1 ? 's' : ''}`);
     setImportData(null);
     load();
   };
 
   return (
-    <Stack gap="md">
-      <Paper shadow="xs" p="sm" radius="md">
-        <Group gap="sm" wrap="wrap" justify="space-between">
-          <Group gap="sm">
-            <Button size="xs" variant="light" onClick={() => fileInputRef.current?.click()}>
-              Import
-            </Button>
-            {configs.length > 0 && (
-              <Button size="xs" variant="light" onClick={handleExportAll}>
-                Export all
-              </Button>
-            )}
-          </Group>
-          <Button size="xs" onClick={onNew}>Add new configuration</Button>
-        </Group>
-      </Paper>
-
+    <Stack gap="md" style={{ maxWidth: 1200, marginInline: 'auto' }}>
       <input
         ref={fileInputRef}
         type="file"
@@ -104,51 +90,60 @@ export function ConfigList({ onEdit, onNew }: Props) {
         </Notification>
       )}
 
-      {configs.length === 0 && (
-        <Paper shadow="xs" p="md" radius="md">
-          <Text size="sm" c="dimmed" ta="center">
-            No configurations yet. Create one or import from a file.
+      <Paper shadow="xs" p="sm" radius="md">
+        <Group justify="space-between" mb="xs">
+          <Text size="xs" fw={600} c="dimmed" tt="uppercase">
+            Templates ({configs.length})
           </Text>
-        </Paper>
-      )}
-
-      {configs.length > 0 && (
-        <Paper shadow="xs" p="sm" radius="md">
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase" mb="xs">
-            Configurations ({configs.length})
+          <Button size="xs" onClick={onNew}>Add new template</Button>
+        </Group>
+        {configs.length === 0 && (
+          <Text size="sm" c="dimmed" ta="center" py="md">
+            No templates yet. Create one or import from a file.
           </Text>
-          <Stack gap="xs">
-            {configs.map(c => (
-              <Card key={c.id} withBorder padding="xs" radius="sm">
+        )}
+        <Stack gap="xs">
+          {configs.map(c => (
+              <Card key={c.id} withBorder padding="xs" radius="sm" style={{ cursor: 'pointer' }} onClick={() => onRead(c.id)}>
                 <Group justify="space-between" wrap="nowrap">
                   <Text size="sm" fw={500}>{c.identifier}</Text>
                   <Group gap={6}>
-                    <Button size="compact-xs" variant="light" onClick={() => handleExport(c.id, c.identifier)}>
-                      Export
-                    </Button>
-                    <Button size="compact-xs" variant="light" onClick={() => onEdit(c.id)}>
-                      Edit
-                    </Button>
+                    <ActionIcon variant="subtle" size="sm" onClick={(e) => { e.stopPropagation(); onEdit(c.id); }} title="Edit">
+                      <IconPencil size={14} />
+                    </ActionIcon>
+                    <ActionIcon variant="subtle" size="sm" onClick={(e) => { e.stopPropagation(); handleExport(c.id, c.identifier); }} title="Export">
+                      <IconDownload size={14} />
+                    </ActionIcon>
                     <CloseButton
                       size="sm"
-                      onClick={() => setDeleteTarget({ id: c.id, identifier: c.identifier })}
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget({ id: c.id, identifier: c.identifier }); }}
                     />
                   </Group>
                 </Group>
               </Card>
             ))}
           </Stack>
-        </Paper>
-      )}
+      </Paper>
+      <Group gap="sm" justify="flex-end">
+        <Button size="xs" variant="light" leftSection={<IconUpload size={14} />} onClick={() => fileInputRef.current?.click()}>
+          Import
+        </Button>
+        {configs.length > 0 && (
+          <Button size="xs" variant="light" leftSection={<IconDownload size={14} />} onClick={handleExportAll}>
+            Export all
+          </Button>
+        )}
+      </Group>
+
       <Modal
         opened={!!importData}
         onClose={() => setImportData(null)}
-        title="Overwrite existing configurations?"
+        title="Overwrite existing templates?"
         centered
         size="sm"
       >
         <Text size="sm" mb="xs">
-          The following configurations already exist and will be overwritten:
+          The following templates already exist and will be overwritten:
         </Text>
         <Stack gap={4} mb="md">
           {importData?.conflicts.map(name => (
@@ -168,7 +163,7 @@ export function ConfigList({ onEdit, onNew }: Props) {
       <Modal
         opened={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        title="Delete configuration"
+        title="Delete template"
         centered
         size="sm"
       >

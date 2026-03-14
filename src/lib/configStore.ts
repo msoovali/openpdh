@@ -66,6 +66,7 @@ export function createConfig(identifier: string, areas: Area[], paymentOrder?: P
   return config;
 }
 
+
 export function updateConfig(id: string, identifier: string, areas: Area[], paymentOrder?: PaymentOrderConfig): Config {
   const configs = loadAll();
   const idx = configs.findIndex(c => c.id === id);

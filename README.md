@@ -60,24 +60,16 @@ Area coordinates are stored as percentages (0–100) of page dimensions, making 
 - [x] Import/export configurations as JSON (single or all)
 - [x] Conflict detection on import with overwrite confirmation
 - [x] Extract structured JSON from any PDF matching a template
-- [x] Download extracted data as JSON
+- [x] Download extracted data as JSON/CSV
 - [x] PDF preview with zone overlay during extraction
 - [x] Page rotation support
 - [x] Responsive layout (mobile/desktop)
 - [x] Docker deployment with nginx
 - [x] Fully client-side — no data leaves the browser
 - [x] Export extracted data as XML payment order
+- [x] Process multiple PDFs at once
 
 ## Future Roadmap
-
-### Output formats
-- [ ] CSV/Excel export
-- [ ] Custom output templates (Mustache/Handlebars)
-- [ ] Copy extracted data to clipboard as table
-
-### Batch processing
-- [ ] Process multiple PDFs at once with combined export
-- [ ] Auto-detect matching config by signature zone
 
 ### Smarter extraction
 - [ ] Regex post-processing per field (strip currency symbols, normalize dates)
@@ -96,7 +88,6 @@ Area coordinates are stored as percentages (0–100) of page dimensions, making 
 - [ ] Zoom and pan on the PDF viewer
 - [ ] Undo/redo for zone drawing
 - [ ] Drag to move/resize existing rectangles
-- [ ] Dark mode
 
 ### Integration
 - [ ] PWA support (install as desktop app, work offline)
