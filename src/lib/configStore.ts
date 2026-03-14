@@ -5,6 +5,9 @@ export interface Area {
   y: number;
   width: number;
   height: number;
+  anchorKeyword?: string;
+  anchorOffsetX?: number;
+  anchorOffsetY?: number;
 }
 
 export interface PaymentOrderFieldMappings {
@@ -104,12 +107,18 @@ export interface ImportItem {
 function isValidArea(a: unknown): a is Area {
   if (typeof a !== 'object' || a === null) return false;
   const obj = a as Record<string, unknown>;
-  return typeof obj.key === 'string' &&
+  const baseValid = typeof obj.key === 'string' &&
     typeof obj.page === 'number' && Number.isInteger(obj.page) && obj.page >= 1 &&
     typeof obj.x === 'number' && obj.x >= 0 && obj.x <= 100 &&
     typeof obj.y === 'number' && obj.y >= 0 && obj.y <= 100 &&
     typeof obj.width === 'number' && obj.width > 0 && obj.width <= 100 &&
     typeof obj.height === 'number' && obj.height > 0 && obj.height <= 100;
+  if (!baseValid) return false;
+  if ('anchorKeyword' in obj && obj.anchorKeyword !== undefined) {
+    if (typeof obj.anchorKeyword !== 'string' || obj.anchorKeyword.length === 0) return false;
+    if (typeof obj.anchorOffsetX !== 'number' || typeof obj.anchorOffsetY !== 'number') return false;
+  }
+  return true;
 }
 
 export function parseImport(json: string): { items: ImportItem[]; conflicts: string[] } {

@@ -9,8 +9,8 @@
 
 ## How it works
 
-1. **Configure** — Upload a sample PDF, draw rectangles over the areas you want to extract, and assign field names to each zone
-2. **Harvest** — Upload any PDF with the same layout, and get structured JSON output instantly
+1. **Configure** — Upload a sample PDF, draw rectangles over the areas you want to extract, and assign field names to each zone. Optionally anchor zones to a keyword so they follow shifting content across documents.
+2. **Harvest** — Upload any PDF with the same layout, and get structured JSON output instantly. Anchored zones automatically reposition based on where the keyword appears.
 3. **Manage** — List, delete, import, and export your extraction configurations
 
 ## Tech Stack
@@ -48,6 +48,16 @@ Serves the app via nginx on port 8080.
 
 Area coordinates are stored as percentages (0–100) of page dimensions, making templates resolution-independent. During extraction, pdf.js reads individual characters from the PDF, filters those falling within each defined rectangle, and reconstructs lines by sorting on Y then X position.
 
+### Keyword-Anchored Zones
+
+Fixed rectangles break when content shifts between documents (e.g., invoices with varying line items push "Total" to different positions). To handle this, you can anchor a zone to a keyword:
+
+1. Draw a rectangle on the sample PDF as usual
+2. Type a keyword (e.g., "Total") in the anchor field on the area card
+3. The system records the offset between the keyword's position and the rectangle
+4. On a new PDF: the keyword is located, the stored offset is applied, and data is extracted from the repositioned zone
+5. If the keyword isn't found, the zone falls back to its original fixed position
+
 ## Completed
 
 - [x] PDF rendering with canvas and page navigation
@@ -69,6 +79,7 @@ Area coordinates are stored as percentages (0–100) of page dimensions, making 
 - [x] Export extracted data as XML payment order
 - [x] Process multiple PDFs at once
 - [x] PWA support (install as desktop app, work offline)
+- [x] Keyword-anchored zones (extraction follows shifting content)
 
 ## Future Roadmap
 
@@ -76,7 +87,6 @@ Area coordinates are stored as percentages (0–100) of page dimensions, making 
 - [ ] Regex post-processing per field (strip currency symbols, normalize dates)
 - [ ] Field type hints (date, number, currency) with validation
 - [ ] Multi-line table extraction (detect repeating rows within a zone)
-- [ ] Fallback zones (try alternative location if primary zone is empty)
 
 ### Template management
 - [ ] Template versioning (config change history)

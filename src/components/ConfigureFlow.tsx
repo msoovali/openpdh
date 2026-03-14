@@ -1,12 +1,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Button, ActionIcon, TextInput, Stack, Paper, Text, Group, Card, CloseButton, Code, Notification, useMantineTheme, Checkbox, Select, Modal } from '@mantine/core';
-import { IconArrowLeft } from '@tabler/icons-react';
+import { Button, ActionIcon, TextInput, Stack, Paper, Text, Group, Card, CloseButton, Code, Notification, useMantineTheme, Checkbox, Select, Modal, Tooltip } from '@mantine/core';
+import { IconArrowLeft, IconInfoCircle } from '@tabler/icons-react';
 import { useMediaQuery } from '@mantine/hooks';
 import { PdfDropzone } from './PdfDropzone';
 import { PdfViewer } from './PdfViewer';
 import type { Rect } from './PdfViewer';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { extractSinglePageInfo, extractTextFromArea, extractFromAreas, loadPdfDocument, hasExtractionError, type PageInfo } from '../lib/pdfExtractor';
+import { extractSinglePageInfo, extractTextFromArea, extractFromAreas, loadPdfDocument, hasExtractionError, findKeywordPosition, type PageInfo } from '../lib/pdfExtractor';
 import { createConfig, updateConfig, getConfig, deleteConfig, listConfigs, loadPayerDetails, savePayerDetails } from '../lib/configStore';
 import type { PaymentOrderFieldMappings } from '../lib/configStore';
 import { useFiles, fileKey } from '../lib/fileStore';
@@ -22,13 +22,16 @@ interface Props {
 const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK'];
 
 function buildSnapshot(
-  identifier: string, rects: { key: string; page: number; x: number; y: number; width: number; height: number }[],
+  identifier: string, rects: { key: string; page: number; x: number; y: number; width: number; height: number; anchorKeyword?: string; anchorOffsetX?: number; anchorOffsetY?: number }[],
   paymentEnabled: boolean, payerName: string, payerIban: string, payerBic: string,
   currency: string, fieldMappings: PaymentOrderFieldMappings,
 ): string {
   return JSON.stringify({
     identifier,
-    areas: rects.map(r => ({ key: r.key, page: r.page, x: r.x, y: r.y, width: r.width, height: r.height })),
+    areas: rects.map(r => ({
+      key: r.key, page: r.page, x: r.x, y: r.y, width: r.width, height: r.height,
+      ...(r.anchorKeyword ? { anchorKeyword: r.anchorKeyword, anchorOffsetX: r.anchorOffsetX, anchorOffsetY: r.anchorOffsetY } : {}),
+    })),
     paymentEnabled,
     ...(paymentEnabled ? { payerName, payerIban, payerBic, currency, fieldMappings } : {}),
   });
@@ -83,6 +86,11 @@ export function ConfigureFlow({ editConfigId, cloneFromConfigId, returnToRead, o
           y: a.y,
           width: a.width,
           height: a.height,
+          ...(a.anchorKeyword ? {
+            anchorKeyword: a.anchorKeyword,
+            anchorOffsetX: a.anchorOffsetX,
+            anchorOffsetY: a.anchorOffsetY,
+          } : {}),
         }));
         setRects(loadedRects);
         if (config.paymentOrder) {
@@ -131,7 +139,18 @@ export function ConfigureFlow({ editConfigId, cloneFromConfigId, returnToRead, o
     }
     setRects(curr => curr.map(rect => {
       const pi = pagesCacheRef.current.get(rect.page);
-      return { ...rect, previewText: pi ? extractTextFromArea(pi, rect) : '' };
+      let adjusted = rect;
+      if (rect.anchorKeyword && pi) {
+        const kwPos = findKeywordPosition(pi, rect.anchorKeyword);
+        if (kwPos) {
+          adjusted = {
+            ...rect,
+            x: Math.max(0, Math.min(100 - rect.width, kwPos.x + (rect.anchorOffsetX ?? 0))),
+            y: Math.max(0, Math.min(100 - rect.height, kwPos.y + (rect.anchorOffsetY ?? 0))),
+          };
+        }
+      }
+      return { ...adjusted, previewText: pi ? extractTextFromArea(pi, adjusted) : '' };
     }));
   }, []);
 
@@ -143,6 +162,11 @@ export function ConfigureFlow({ editConfigId, cloneFromConfigId, returnToRead, o
     }
     const areas = rects.filter(r => r.key.trim()).map(r => ({
       key: r.key, page: r.page, x: r.x, y: r.y, width: r.width, height: r.height,
+      ...(r.anchorKeyword ? {
+        anchorKeyword: r.anchorKeyword,
+        anchorOffsetX: r.anchorOffsetX,
+        anchorOffsetY: r.anchorOffsetY,
+      } : {}),
     }));
     if (areas.length === 0) { setFileStatus(new Map()); return; }
 
@@ -202,6 +226,24 @@ export function ConfigureFlow({ editConfigId, cloneFromConfigId, returnToRead, o
     if (selectedRectIdRef.current === id) setSelectedRectId(null);
   }, []);
 
+  const handleKeywordChange = useCallback((rectId: string, keyword: string) => {
+    setRects(prev => prev.map(r => {
+      if (r.id !== rectId) return r;
+      if (!keyword) {
+        return { ...r, anchorKeyword: undefined, anchorOffsetX: undefined, anchorOffsetY: undefined };
+      }
+      const pageInfo = pagesCacheRef.current.get(r.page);
+      if (pageInfo) {
+        const kwPos = findKeywordPosition(pageInfo, keyword);
+        if (kwPos) {
+          return { ...r, anchorKeyword: keyword, anchorOffsetX: r.x - kwPos.x, anchorOffsetY: r.y - kwPos.y };
+        }
+      }
+      // Keyword not found on sample — store with zero offsets
+      return { ...r, anchorKeyword: keyword, anchorOffsetX: 0, anchorOffsetY: 0 };
+    }));
+  }, []);
+
   const [overwriteTarget, setOverwriteTarget] = useState<{ id: string; name: string } | null>(null);
   const pendingSaveAndReadRef = useRef(false);
 
@@ -221,6 +263,11 @@ export function ConfigureFlow({ editConfigId, cloneFromConfigId, returnToRead, o
         y: r.y,
         width: r.width,
         height: r.height,
+        ...(r.anchorKeyword ? {
+          anchorKeyword: r.anchorKeyword,
+          anchorOffsetX: r.anchorOffsetX,
+          anchorOffsetY: r.anchorOffsetY,
+        } : {}),
       }));
 
       const paymentOrder = paymentEnabled ? {
@@ -457,6 +504,26 @@ export function ConfigureFlow({ editConfigId, cloneFromConfigId, returnToRead, o
                         handleDeleteRect(r.id);
                       }}
                     />
+                  </Group>
+                  <Group gap={4} wrap="nowrap" mt={4}>
+                    <TextInput
+                      size="xs"
+                      placeholder="Anchor keyword (optional)"
+                      value={r.anchorKeyword ?? ''}
+                      onChange={e => handleKeywordChange(r.id, e.currentTarget.value)}
+                      onClick={e => e.stopPropagation()}
+                      style={{ flex: 1 }}
+                    />
+                    <Tooltip
+                      label="Anchor this area to a keyword. When reading a new PDF, the area moves to follow the keyword's position — useful when content shifts between documents."
+                      multiline
+                      w={240}
+                      withArrow
+                    >
+                      <ActionIcon variant="subtle" size="xs" aria-label="Anchor keyword info" onClick={e => e.stopPropagation()}>
+                        <IconInfoCircle size={14} />
+                      </ActionIcon>
+                    </Tooltip>
                   </Group>
                   <Text size="xs" c="dimmed">Page {r.page}</Text>
                   {r.previewText !== undefined && (

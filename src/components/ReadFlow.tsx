@@ -5,7 +5,7 @@ import { useMediaQuery } from '@mantine/hooks';
 import { PdfDropzone } from './PdfDropzone';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { listConfigs, getConfig } from '../lib/configStore';
-import { loadPdfDocument, extractFromAreas, hasExtractionError } from '../lib/pdfExtractor';
+import { loadPdfDocument, extractFromAreas, hasExtractionError, extractSinglePageInfo, findKeywordPosition } from '../lib/pdfExtractor';
 import { downloadJSON, downloadXML, downloadCSV, buildCsv, sanitizeFilename } from '../lib/download';
 import { generatePain001, generatePain001Multi, parseDateToYMD } from '../lib/painXmlGenerator';
 import type { Pain001Transaction } from '../lib/painXmlGenerator';
@@ -42,12 +42,8 @@ export function ReadFlow({ initialConfigId, onEditTemplate, onCloneEditTemplate 
   const previewDocRef = useRef<PDFDocumentProxy | null>(null);
   const extractionIdRef = useRef(0);
 
-  const handleDocLoaded = useCallback((doc: PDFDocumentProxy) => {
-    previewDocRef.current = doc;
-  }, []);
-
-  // Build rects from selected config areas
-  const rects = useMemo<Rect[]>(() => {
+  // Base rects from config (fixed positions)
+  const baseRects = useMemo<Rect[]>(() => {
     if (!selectedConfigId) return [];
     const config = getConfig(selectedConfigId);
     if (!config) return [];
@@ -59,7 +55,52 @@ export function ReadFlow({ initialConfigId, onEditTemplate, onCloneEditTemplate 
       y: a.y,
       width: a.width,
       height: a.height,
+      anchorKeyword: a.anchorKeyword,
+      anchorOffsetX: a.anchorOffsetX,
+      anchorOffsetY: a.anchorOffsetY,
     }));
+  }, [selectedConfigId]);
+
+  // Adjusted rects after resolving keyword anchors on the current doc
+  const [anchorAdjustments, setAnchorAdjustments] = useState<Map<string, { x: number; y: number }>>(new Map());
+
+  const rects = useMemo<Rect[]>(() => {
+    if (anchorAdjustments.size === 0) return baseRects;
+    return baseRects.map(r => {
+      const adj = anchorAdjustments.get(r.key);
+      return adj ? { ...r, x: adj.x, y: adj.y } : r;
+    });
+  }, [baseRects, anchorAdjustments]);
+
+  const handleDocLoaded = useCallback(async (doc: PDFDocumentProxy) => {
+    previewDocRef.current = doc;
+    setAnchorAdjustments(new Map());
+    if (!selectedConfigId) return;
+    const config = getConfig(selectedConfigId);
+    if (!config) return;
+    const anchored = config.areas.filter(a => a.anchorKeyword);
+    if (anchored.length === 0) return;
+
+    const neededPages = [...new Set(anchored.map(a => a.page))];
+    const pageInfoMap = new Map<number, Awaited<ReturnType<typeof extractSinglePageInfo>>>();
+    await Promise.all(neededPages.map(async p => {
+      if (p >= 1 && p <= doc.numPages) {
+        pageInfoMap.set(p, await extractSinglePageInfo(doc, p));
+      }
+    }));
+
+    const adjustments = new Map<string, { x: number; y: number }>();
+    for (const area of anchored) {
+      const pageInfo = pageInfoMap.get(area.page);
+      if (!pageInfo) continue;
+      const kwPos = findKeywordPosition(pageInfo, area.anchorKeyword!);
+      if (!kwPos) continue;
+      adjustments.set(area.key, {
+        x: Math.max(0, Math.min(100 - area.width, kwPos.x + (area.anchorOffsetX ?? 0))),
+        y: Math.max(0, Math.min(100 - area.height, kwPos.y + (area.anchorOffsetY ?? 0))),
+      });
+    }
+    if (adjustments.size > 0) setAnchorAdjustments(adjustments);
   }, [selectedConfigId]);
 
   // Batch extraction when files and config are ready

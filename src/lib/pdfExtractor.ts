@@ -97,6 +97,47 @@ export function hasExtractionError(data: Record<string, string>): boolean {
   return Object.values(data).some(v => !v || v.startsWith('ERROR:'));
 }
 
+export function findKeywordPosition(pageInfo: PageInfo, keyword: string): { x: number; y: number } | null {
+  const chars = [...pageInfo.chars];
+  // Sort top-to-bottom (descending PDF Y), then left-to-right
+  chars.sort((a, b) => {
+    const yDiff = b.y - a.y;
+    if (Math.abs(yDiff) > 2) return yDiff;
+    return a.x - b.x;
+  });
+
+  // Group into lines
+  const lines: { chars: CharInfo[] }[] = [];
+  let currentLine: CharInfo[] = [];
+  let lastY: number | null = null;
+
+  for (const ch of chars) {
+    if (lastY !== null && Math.abs(ch.y - lastY) > 2) {
+      if (currentLine.length > 0) lines.push({ chars: currentLine });
+      currentLine = [];
+    }
+    currentLine.push(ch);
+    lastY = ch.y;
+  }
+  if (currentLine.length > 0) lines.push({ chars: currentLine });
+
+  const lowerKeyword = keyword.toLowerCase();
+
+  for (const line of lines) {
+    const text = line.chars.map(c => c.char).join('');
+    const idx = text.toLowerCase().indexOf(lowerKeyword);
+    if (idx !== -1) {
+      const matchChar = line.chars[idx];
+      // Convert PDF coords to percentage coords (with Y-axis inversion)
+      const xPct = (matchChar.x / pageInfo.width) * 100;
+      const yPct = ((pageInfo.height - matchChar.y) / pageInfo.height) * 100;
+      return { x: xPct, y: yPct };
+    }
+  }
+
+  return null;
+}
+
 export async function extractFromAreas(doc: PDFDocumentProxy, areas: Area[]): Promise<Record<string, string>> {
   const neededPages = [...new Set(areas.map(a => a.page))];
   const pageMap = new Map<number, PageInfo>();
@@ -113,7 +154,19 @@ export async function extractFromAreas(doc: PDFDocumentProxy, areas: Area[]): Pr
       result[area.key] = '';
       continue;
     }
-    const text = extractTextFromArea(pageInfo, area);
+
+    let effectiveArea = { x: area.x, y: area.y, width: area.width, height: area.height };
+
+    if (area.anchorKeyword) {
+      const kwPos = findKeywordPosition(pageInfo, area.anchorKeyword);
+      if (kwPos) {
+        const newX = Math.max(0, Math.min(100 - area.width, kwPos.x + (area.anchorOffsetX ?? 0)));
+        const newY = Math.max(0, Math.min(100 - area.height, kwPos.y + (area.anchorOffsetY ?? 0)));
+        effectiveArea = { x: newX, y: newY, width: area.width, height: area.height };
+      }
+    }
+
+    const text = extractTextFromArea(pageInfo, effectiveArea);
     result[area.key] = text;
   }
 

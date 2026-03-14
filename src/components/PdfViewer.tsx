@@ -13,6 +13,9 @@ export interface Rect {
   width: number;
   height: number;
   previewText?: string;
+  anchorKeyword?: string;
+  anchorOffsetX?: number;
+  anchorOffsetY?: number;
 }
 
 interface Props {
