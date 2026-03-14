@@ -3,7 +3,7 @@ import { Stack, Card, Group, Text, Button, ActionIcon, CloseButton, Notification
 import { listConfigs, deleteConfig, exportConfig, exportAllConfigs, parseImport, importConfigs } from '../lib/configStore';
 import type { ImportItem } from '../lib/configStore';
 import { downloadJSON, sanitizeFilename } from '../lib/download';
-import { IconPencil, IconDownload, IconUpload } from '@tabler/icons-react';
+import { IconPencil, IconDownload, IconUpload, IconFileText } from '@tabler/icons-react';
 
 interface Props {
   onEdit: (id: string) => void;
@@ -106,7 +106,13 @@ export function ConfigList({ onEdit, onNew, onRead }: Props) {
           {configs.map(c => (
               <Card key={c.id} withBorder padding="xs" radius="sm" style={{ cursor: 'pointer' }} onClick={() => onRead(c.id)}>
                 <Group justify="space-between" wrap="nowrap">
-                  <Text size="sm" fw={500}>{c.identifier}</Text>
+                  <Group gap="xs" wrap="nowrap">
+                    <IconFileText size={16} style={{ color: 'var(--mantine-color-blue-5)', flexShrink: 0 }} />
+                    <div>
+                      <Text size="sm" fw={500}>{c.identifier}</Text>
+                      <Text size="xs" c="dimmed">Click to read PDF with this template</Text>
+                    </div>
+                  </Group>
                   <Group gap={6}>
                     <ActionIcon variant="subtle" size="sm" onClick={(e) => { e.stopPropagation(); onEdit(c.id); }} title="Edit">
                       <IconPencil size={14} />
