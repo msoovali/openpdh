@@ -1,0 +1,29 @@
+{
+  "name": "OpenPDH — Portable Document Harvester",
+  "short_name": "OpenPDH",
+  "description": "Extract structured data from PDFs by defining rectangular reading zones. All processing stays in your browser.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#1a1b1e",
+  "background_color": "#1a1b1e",
+  "categories": ["utilities", "productivity"],
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

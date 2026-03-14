@@ -2,12 +2,71 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OpenPDH — Portable Document Harvester</title>
+
+    <title>OpenPDH — Extract Structured Data from PDFs in Your Browser</title>
+    <meta name="description" content="OpenPDH is a free, browser-only tool for extracting structured data from PDFs. Define rectangular reading zones on a sample PDF, then harvest data from any PDF with the same layout. No server, no uploads — all processing stays in your browser." />
+    <meta name="keywords" content="PDF data extraction, PDF to JSON, PDF text extraction, browser PDF tool, client-side PDF processing, structured data from PDF, PDF scraping, PDF harvester, open source PDF tool" />
+    <meta name="author" content="OpenPDH" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="OpenPDH — Extract Structured Data from PDFs" />
+    <meta property="og:description" content="Free browser-only tool for extracting structured data from PDFs. Define reading zones, harvest data instantly. No server — all processing stays in your browser." />
+    <meta property="og:image" content="/OPENPDH_HEADER.png" />
+    <meta property="og:site_name" content="OpenPDH" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="OpenPDH — Extract Structured Data from PDFs" />
+    <meta name="twitter:description" content="Free browser-only tool for extracting structured data from PDFs. Define reading zones, harvest data instantly. No server needed." />
+    <meta name="twitter:image" content="/OPENPDH_HEADER.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/OPENPDH_logo.png" />
+
+    <!-- PWA -->
+    <meta name="theme-color" content="#1a1b1e" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "OpenPDH",
+      "alternateName": "Open Portable Document Harvester",
+      "description": "A browser-only tool for extracting structured data from PDFs by defining rectangular reading zones. All processing is client-side.",
+      "applicationCategory": "Utility",
+      "operatingSystem": "Any (browser-based)",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "PDF text extraction",
+        "Rectangular zone selection",
+        "JSON output",
+        "CSV export",
+        "Client-side processing",
+        "No data upload required",
+        "Configuration templates"
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js');
+        });
+      }
+    </script>
   </body>
 </html>
